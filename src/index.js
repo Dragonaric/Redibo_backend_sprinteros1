@@ -20,7 +20,9 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' })); // Procesar U
 app.use(morgan('dev')); // Logger de solicitudes
 
 // Configuración de CORS
-const allowedOrigins = ['http://localhost:3000', 'http://localhost:4000'];
+// Reemplaza todo el bloque de allowedOrigins + origin callback por:
+app.use(cors());  
+
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
