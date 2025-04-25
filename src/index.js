@@ -5,8 +5,8 @@ const bodyParser = require('body-parser'); // Mantén solo esta línea
 const { PrismaClient } = require('@prisma/client');
 
 // Importamos las rutas de los módulos
-const rutasPar1 = require('./sprinteros/Par_1/controlador/rutas');
-const rutasPar3 = require('./sprinteros/Par_3/routes');
+const rutasPar1 = require('./Sprinteros/Par_1/controlador/rutas');
+const rutasPar3 = require('./Sprinteros/Par_3/routes');
 const carRoutes = require('./Sprinteros/Par_2/routes/carRoutes');
 
 const app = express();
