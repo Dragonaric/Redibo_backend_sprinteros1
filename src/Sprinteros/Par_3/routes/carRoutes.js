@@ -17,9 +17,8 @@ router.use((req, res, next) => {
   res.set('Expires', '0');
   next();
 });
-if (process.env.NODE_ENV !== 'production') {
-  router.get('/dev-token', generateDevToken);
-}
+
+router.get('/dev-token', generateDevToken);
 // Middleware para validar ID en todas las rutas que usen :id
 router.post('/full', authenticateToken, validateNewCarFull, fullCarController.createFullCarHandler);
 router.param('id', validateID);
