@@ -116,7 +116,7 @@ model CombustibleCarro {
 
 model TipoCombustible {
   id             Int    @id @default(autoincrement())
-  tipoDeCombustible String    @unique
+  tipoDeCombustible String
   id_carro       Int
   combustibleCarro CombustibleCarro[]
 }
@@ -131,7 +131,7 @@ model caracteristicasAdicionalesCarro {
 
 model CarasteristicasAdicionales {
   id        Int    @id @default(autoincrement())
-  nombre    String    @unique
+  nombre    String
   caracteristicasAdicionalesCarro caracteristicasAdicionalesCarro[]
 }
 
@@ -185,8 +185,8 @@ model Garantia {
 model Ciudad{
   id      Int      @id @default(autoincrement())
   nombre  String
-  pais   Pais     @relation(fields: [id_pais], references: [id])
-  id_pais Int
+  pais   Pais?    @relation(fields: [id_pais], references: [id])
+  id_pais Int?
   usuarios Usuario[]
   provincias Provincia[]
 
@@ -195,7 +195,7 @@ model Ciudad{
 
 model Pais {
   id         Int         @id @default(autoincrement())
-  nombre     String       @unique
+  nombre     String
   ciudad     Ciudad[]
 }
 
