@@ -1,37 +1,41 @@
-const { validationResult } = require('express-validator');
+// backend/controllers/fullCarController.js
+
 const asyncHandler = require('express-async-handler');
 const fullCarService = require('../services/fullCarService');
 
 /**
- * Controlador para crear un carro completo con todas sus relaciones y datos asociados.
- * @param {Object} req - Objeto de solicitud HTTP.
- * @param {Object} res - Objeto de respuesta HTTP.
+ * Controlador para crear un carro completo sin imágenes.
  */
 const createFullCarHandler = asyncHandler(async (req, res) => {
-  // 1) Extraer id_usuario_rol de req.user
   const id_usuario_rol = req.user?.id_usuario_rol;
-
   if (!id_usuario_rol) {
-    return res.status(403).json({ success: false, message: 'No tienes permiso para realizar esta acción.' });
+    return res
+      .status(403)
+      .json({ success: false, message: 'No tienes permiso para realizar esta acción.' });
   }
 
-  // 2) Validación Joi
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
-  // 3) Desestructurar del body
   const {
-    id_provincia, calle, zona, num_casa,
-    vim, año, marca, modelo, placa,
-    asientos, puertas, soat,
-    combustibleIds, extraIds, imagesBase64,
-    precio_por_dia, num_mantenimientos,
-    transmicion, estado, descripcion,
+    id_provincia,
+    calle,
+    zona,
+    num_casa,
+    vim,
+    año,
+    marca,
+    modelo,
+    placa,
+    asientos,
+    puertas,
+    soat,
+    transmicion,
+    combustibleIds,
+    extraIds,
+    precio_por_dia,
+    num_mantenimientos,
+    estado,
+    descripcion,
   } = req.body;
 
-  // 4) Construir DTO
   const dto = {
     direccion: { id_provincia, calle, zona, num_casa },
     carro: {
@@ -40,24 +44,23 @@ const createFullCarHandler = asyncHandler(async (req, res) => {
       marca,
       modelo,
       placa,
-      id_usuario_rol, // Usar el id_usuario_rol del token
+      id_usuario_rol,
       asientos,
       puertas,
       soat,
+      transmicion,
       precio_por_dia,
       num_mantenimientos,
-      transmicion,
       estado,
       descripcion,
     },
-    imagesBase64,
     combustibles: combustibleIds,
     caracteristicas: extraIds,
   };
 
-  // 5) Llamar al servicio
-  const result = await fullCarService.createFullCar(dto);
-  res.status(201).json({ success: true, data: result });
+  const { carro: newCar } = await fullCarService.createFullCar(dto);
+  // Devolver solo el ID para que el frontend lo use en la subida de imágenes
+  res.status(201).json({ success: true, data: { id: newCar.id } });
 });
 
 module.exports = { createFullCarHandler };

@@ -1,16 +1,16 @@
 const express = require('express');
 const router = express.Router();
 
-const carController = require('../controllers/carController');
-const authenticateToken = require('../middlewares/authenticateToken'); // Middleware para autenticar el token
-const fullCarController = require('../controllers/fullCarController'); // Importar el controlador para carros completos
+const authenticateToken = require('../middlewares/authenticateToken');
+const validateID = require('../middlewares/validateID');
 const { validateCreateCar } = require('../middlewares/validateCreateCar');
 const { validateUpdateCar } = require('../middlewares/validateUpdateCar');
-const validateNewCarFull = require('../middlewares/validateNewCarFull'); // Importar el middleware de validación
-const validateID = require('../middlewares/validateID');
-const { generateDevToken } = require('../controllers/generateDevToken'); // Middleware para generar token de desarrollo
-// En carRoutes.js, antes de definir las rutas
+const validateNewCarFull = require('../middlewares/validateNewCarFull');
+const carController = require('../controllers/carController');
+const fullCarController = require('../controllers/fullCarController');
+const { generateDevToken } = require('../controllers/generateDevToken');
 
+// Middleware para deshabilitar el almacenamiento en caché
 router.use((req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.set('Pragma', 'no-cache');
@@ -18,24 +18,41 @@ router.use((req, res, next) => {
   next();
 });
 
-router.get('/dev-token', generateDevToken);
-// Middleware para validar ID en todas las rutas que usen :id
-router.post('/full', authenticateToken, validateNewCarFull, fullCarController.createFullCarHandler);
+// Ruta para generar un token de desarrollo (solo en entornos no productivos)
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/dev-token', generateDevToken);
+}
+
+// Ruta para crear un carro completo (sin imágenes)
+router.post(
+  '/full',
+  authenticateToken, // Middleware para autenticar el token
+  validateNewCarFull, // Middleware para validar los datos del carro completo
+  fullCarController.createFullCarHandler // Controlador para manejar la creación
+);
+
+// Middleware para validar el parámetro "id" en las rutas
 router.param('id', validateID);
 
-// Ruta base /api/v2/cars
-router.route('/')
-  .get(carController.getCars)
-  .post(validateCreateCar, carController.createCar);
+// Rutas estándar CRUD para carros
+router
+  .route('/')
+  .get(authenticateToken, carController.getCars) // Obtener lista de carros
+  .post(authenticateToken, validateCreateCar, carController.createCar); // Crear un carro
 
-// Ruta para crear un carro completo con todas sus relaciones
+router
+  .route('/:id')
+  .get(authenticateToken, carController.getCarById) // Obtener un carro por ID
+  .put(authenticateToken, validateUpdateCar, carController.updateCar) // Actualizar un carro
+  .delete(authenticateToken, carController.deleteCar); // Eliminar un carro
 
-
-// Rutas con ID /api/v2/cars/:id
-router.route('/:id')
-  .get(carController.getCarById)
-  .put(validateUpdateCar, carController.updateCar)
-  .delete(carController.deleteCar); // DELETE /api/v2/cars/1
-  
+// Middleware global para manejar errores en las rutas
+router.use((err, res) => {
+  console.error('Error en carRoutes:', err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Error interno del servidor',
+  });
+});
 
 module.exports = router;

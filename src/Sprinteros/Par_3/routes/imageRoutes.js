@@ -1,19 +1,21 @@
-const express = require('express');
-const multer = require('multer');
+// backend/routes/imageRoutes.js
+
+const express         = require('express');
 const imageController = require('../controllers/imageController');
+const validateImage   = require('../middlewares/validateImage');
 
 const router = express.Router();
-const upload = multer(); // Configuración básica de multer
 
-// Si deseas que para obtener imágenes se llame así: GET /api/v2/images?carId=1
-router.get('/', imageController.getImagesByCarId);
+// GET  /api/images/:carId
+router.get('/:carId', imageController.getImagesByCarId);
 
-// O bien, si prefieres usar parámetros en la URL (por ejemplo, /api/v2/images/:carId)
-// router.get('/:carId', imageController.getImagesByCarId);
+// POST /api/images/:carId
+router.post('/:carId', validateImage, imageController.createImage);
 
-// Rutas para crear, actualizar y eliminar imágenes:
-router.post('/', upload.single('image'), imageController.createImage);
-router.put('/:imageId', upload.single('image'), imageController.updateImage);
+// PUT  /api/images/:imageId
+router.put('/:imageId', validateImage, imageController.updateImage);
+
+// DELETE /api/images/:imageId
 router.delete('/:imageId', imageController.deleteImage);
 
 module.exports = router;

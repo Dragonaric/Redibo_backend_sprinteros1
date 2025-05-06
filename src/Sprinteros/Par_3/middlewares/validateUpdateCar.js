@@ -1,53 +1,26 @@
+// backend/middlewares/validateUpdateCar.js
+
 const { body, validationResult } = require('express-validator');
-const prisma = require('../../../config/prisma');// Instancia única compartida
+
 exports.validateUpdateCar = [
-  // Validaciones opcionales
-  body('nombre')
+  // Num. de mantenimientos: entero >= 0
+  body('num_mantenimientos')
     .optional()
-    .trim()
-    .notEmpty().withMessage('Nombre es requerido')
-    .isLength({ max: 50 }).withMessage('Máximo 50 caracteres'),
+    .isInt({ min: 0 })
+    .withMessage('num_mantenimientos debe ser un entero ≥ 0'),
 
-  body('modelo')
+  // Precio por día: número con hasta 2 decimales y > 0
+  body('precio_por_dia')
     .optional()
-    .trim()
-    .isInt({ min: 1900, max: new Date().getFullYear() + 1 })
-    .withMessage('Modelo debe ser un año válido'),
+    .isFloat({ gt: 0 })
+    .withMessage('precio_por_dia debe ser un número > 0'),
 
-  body('vim')
+  // Descripción: opcional, máximo 500 caracteres
+  body('descripcion')
     .optional()
-    .trim()
-    .matches(/^[A-HJ-NPR-Z0-9]{17}$/).withMessage('VIN inválido')
-    .custom(async (value, { req }) => {
-      const existingCar = await prisma.carro.findFirst({ 
-        where: { 
-          vim: value,
-          NOT: { id: Number(req.params.id) } // Ignora el registro actual
-        } 
-      });
-      if (existingCar) throw new Error('VIN ya registrado');
-      return true;
-    }),
-
-  body('placa')
-    .optional()
-    .trim()
-    .matches(/^\d{4}[A-Z]{3}$/).withMessage('Formato inválido')
-    .custom((value) => {
-      const numero = parseInt(value.substring(0, 4), 10);
-      if (numero < 0 || numero > 6399) throw new Error('Número de placa inválido');
-      return true;
-    })
-    .custom(async (value, { req }) => {
-      const existingCar = await prisma.carro.findFirst({
-        where: { 
-          placa: value,
-          NOT: { id: Number(req.params.id) } 
-        }
-      });
-      if (existingCar) throw new Error('Placa ya registrada');
-      return true;
-    }),
+    .isString()
+    .isLength({ max: 500 })
+    .withMessage('descripcion debe tener máximo 500 caracteres'),
 
   // Manejo de errores
   (req, res, next) => {
@@ -56,7 +29,10 @@ exports.validateUpdateCar = [
       return res.status(400).json({
         success: false,
         message: 'Errores de validación',
-        errors: errors.array()
+        errors: errors.array().map(err => ({
+          field: err.param,
+          message: err.msg
+        }))
       });
     }
     next();

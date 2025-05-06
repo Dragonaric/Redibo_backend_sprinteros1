@@ -47,40 +47,54 @@ async function createCar(data) {
 
 /**
  * Obtiene un carro por su ID.
- * @param {number|string} id - ID del carro.
- * @returns {Object} El carro encontrado.
  */
 async function getCarById(id) {
   try {
     const car = await prisma.carro.findUnique({
       where: { id: Number(id) },
+      select: {
+        id: true,
+        marca: true,
+        modelo: true,
+        año: true,
+        precio_por_dia: true,
+        estado: true,
+        vim: true,
+        placa: true,
+        num_mantenimientos: true,
+        descripcion: true
+      }
     });
     if (!car) {
       throw new CarServiceError('Carro no encontrado', 'NOT_FOUND');
     }
     return car;
-  } catch (error) {
-    throw new CarServiceError(`Error al obtener el carro: ${error.message}`, 'PRISMA_ERROR', error);
+  } catch (err) {
+    throw new CarServiceError(`Error al obtener el carro: ${err.message}`, 'PRISMA_ERROR', err);
   }
 }
 
 /**
- * Actualiza la información de un carro existente.
- * @param {number|string} id - ID del carro a actualizar.
- * @param {Object} data - Datos a actualizar.
- * @returns {Object} El carro actualizado.
+ * Actualiza campos num_mantenimientos, precio_por_dia y descripcion de un carro.
  */
 async function updateCar(id, data) {
   try {
-    const updatedCar = await prisma.carro.update({
+    const allowed = (({ num_mantenimientos, precio_por_dia, descripcion }) => ({
+      num_mantenimientos,
+      precio_por_dia,
+      descripcion
+    }))(data);
+
+    const updated = await prisma.carro.update({
       where: { id: Number(id) },
-      data,
+      data: allowed
     });
-    return updatedCar;
-  } catch (error) {
-    throw new CarServiceError(`Error al actualizar el carro: ${error.message}`, 'PRISMA_ERROR', error);
+    return updated;
+  } catch (err) {
+    throw new CarServiceError(`Error al actualizar el carro: ${err.message}`, 'PRISMA_ERROR', err);
   }
 }
+
 
 /**
  * Manejo genérico de operaciones con Prisma para centralizar el tratamiento de errores.

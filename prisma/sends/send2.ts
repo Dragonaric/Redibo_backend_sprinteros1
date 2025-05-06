@@ -150,10 +150,11 @@ async function main() {
       },
     });
 
-    // Crear una imagen vacía para el carro
+    // En lugar de crear imagen con Buffer vacío, creamos una entrada con string vacío 
+    // para las URLs de Cloudinary (las imágenes reales se cargarán con sendImage.ts)
     await prisma.imagen.create({
       data: {
-        data: Buffer.from(''),
+        data: '',  // String vacío en lugar de Buffer.from('')
         id_carro: carro.id,
       },
     });
@@ -325,9 +326,10 @@ async function main() {
       },
     });
 
+    // Crear entrada para imagen con string vacío (URL) en lugar de Buffer
     await prisma.imagen.create({
       data: {
-        data: Buffer.from(''),
+        data: '',  // String vacío para URL de Cloudinary
         id_carro: carro.id,
       },
     });

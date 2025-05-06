@@ -1,82 +1,125 @@
-const prisma = require('../../../config/prisma');
-const { CarServiceError } = require('../errors/customErrors');
+// backend/services/imageService.js
+
+const cloudinary = require('../../config/cloudinary');
+const { PrismaClient } = require('@prisma/client');
+const { Readable } = require('stream');
+
+const prisma = new PrismaClient();
 
 /**
- * Obtiene las imágenes asociadas a un carro por su ID.
- * @param {number|string} carId - ID del carro.
- * @returns {Array<Object>} Lista de imágenes asociadas al carro.
+ * Sube una imagen a Cloudinary y crea un registro en BD.
  */
-async function getImagesByCarId(carId) {
-  try {
-    const images = await prisma.imagen.findMany({
-      where: { id_carro: Number(carId) },
-      orderBy: { id: 'asc' }, // Ordenar las imágenes por ID
-    });
-    return images;
-  } catch (error) {
-    throw new CarServiceError(`Error al obtener las imágenes del carro: ${error.message}`, 'PRISMA_ERROR', error);
-  }
-}
+async function uploadCarImage(imageBuffer, carId) {
+  if (!Buffer.isBuffer(imageBuffer)) throw new Error('Buffer inválido');
+  if (!Number.isInteger(carId)) throw new Error('CarId inválido');
 
-/**
- * Crea una nueva imagen asociada a un carro.
- * @param {number|string} carId - ID del carro.
- * @param {Buffer} imageData - Datos de la imagen en formato Buffer.
- * @returns {Object} La imagen creada.
- */
-async function createImage(carId, imageData) {
+  const folder = `car-images/${carId}`;
+  const uploadResult = await new Promise((res, rej) => {
+    const stream = cloudinary.uploader.upload_stream({ folder, resource_type: 'image' },
+      (err, result) => err ? rej(err) : res(result)
+    );
+    Readable.from(imageBuffer).pipe(stream);
+  });
+
+  let saved;
   try {
-    const newImage = await prisma.imagen.create({
+    saved = await prisma.imagen.create({
       data: {
-        id_carro: Number(carId),
-        data: imageData,
-      },
+        data:      uploadResult.secure_url,
+        public_id: uploadResult.public_id,
+        id_carro:  carId,
+        width:     uploadResult.width,
+        height:    uploadResult.height,
+        format:    uploadResult.format,
+      }
     });
-    return newImage;
-  } catch (error) {
-    throw new CarServiceError(`Error al crear la imagen del carro: ${error.message}`, 'PRISMA_ERROR', error);
+  } catch (e) {
+    await cloudinary.uploader.destroy(uploadResult.public_id);
+    throw new Error('Error guardando imagen en BD');
   }
+
+  return { success: true, data: saved };
 }
 
 /**
- * Elimina una imagen por su ID.
- * @param {number|string} imageId - ID de la imagen a eliminar.
- * @returns {Object} Resultado de la eliminación.
+ * Reemplaza la imagen de ID dado:
+ * 1. Sube nueva a Cloudinary
+ * 2. Actualiza el registro en BD
+ * 3. Elimina el asset antiguo
  */
-async function deleteImage(imageId) {
-  try {
-    const deletedImage = await prisma.imagen.delete({
-      where: { id: Number(imageId) },
-    });
-    return deletedImage;
-  } catch (error) {
-    throw new CarServiceError(`Error al eliminar la imagen: ${error.message}`, 'PRISMA_ERROR', error);
-  }
+async function updateCarImage(imageBuffer, imageId) {
+  if (!Buffer.isBuffer(imageBuffer)) throw new Error('Buffer inválido');
+  if (!Number.isInteger(imageId)) throw new Error('ImageId inválido');
+
+  const existing = await prisma.imagen.findUnique({
+    where: { id: imageId },
+    select: { public_id: true, id_carro: true }
+  });
+  if (!existing) throw new Error('Imagen no encontrada');
+
+  const folder = `car-images/${existing.id_carro}`;
+  const uploadResult = await new Promise((res, rej) => {
+    const stream = cloudinary.uploader.upload_stream({ folder, resource_type: 'image' },
+      (err, result) => err ? rej(err) : res(result)
+    );
+    Readable.from(imageBuffer).pipe(stream);
+  });
+
+  const updated = await prisma.imagen.update({
+    where: { id: imageId },
+    data: {
+      data:      uploadResult.secure_url,
+      public_id: uploadResult.public_id,
+      width:     uploadResult.width,
+      height:    uploadResult.height,
+      format:    uploadResult.format,
+    }
+  });
+
+  await cloudinary.uploader.destroy(existing.public_id);
+  return { success: true, data: updated };
 }
 
 /**
- * Actualiza una imagen existente.
- * @param {number|string} imageId - ID de la imagen a actualizar.
- * @param {Buffer} newImageData - Nuevos datos de la imagen en formato Buffer.
- * @returns {Object} La imagen actualizada.
+ * Obtiene imágenes de un carro (paginado).
  */
-async function updateImage(imageId, newImageData) {
-  try {
-    const updatedImage = await prisma.imagen.update({
-      where: { id: Number(imageId) },
-      data: {
-        data: newImageData,
-      },
-    });
-    return updatedImage;
-  } catch (error) {
-    throw new CarServiceError(`Error al actualizar la imagen: ${error.message}`, 'PRISMA_ERROR', error);
-  }
+async function getCarImages(carId, { page = 1, pageSize = 20 } = {}) {
+  if (!Number.isInteger(carId)) throw new Error('CarId inválido');
+  const skip = (page - 1) * pageSize;
+  const [ total, data ] = await Promise.all([
+    prisma.imagen.count({ where: { id_carro: carId } }),
+    prisma.imagen.findMany({
+      where: { id_carro: carId },
+      orderBy: { id: 'asc' },
+      skip,
+      take: pageSize,
+    })
+  ]);
+  return { success: true, data, pagination: { total, page, pageSize, totalPages: Math.ceil(total/pageSize) } };
+}
+
+/**
+ * Elimina imagen de Cloudinary y BD.
+ */
+async function deleteCarImage(imageId) {
+  if (!Number.isInteger(imageId)) throw new Error('ImageId inválido');
+  const img = await prisma.imagen.findUnique({
+    where: { id: imageId },
+    select: { public_id: true }
+  });
+  if (!img) throw new Error('Imagen no encontrada');
+
+  await prisma.$transaction(async tx => {
+    await cloudinary.uploader.destroy(img.public_id);
+    await tx.imagen.delete({ where: { id: imageId } });
+  });
+
+  return { success: true };
 }
 
 module.exports = {
-  getImagesByCarId,
-  createImage,
-  deleteImage,
-  updateImage,
+  uploadCarImage,
+  updateCarImage,
+  getCarImages,
+  deleteCarImage,
 };
